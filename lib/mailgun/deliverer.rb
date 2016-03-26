@@ -15,19 +15,37 @@ module Mailgun
       self.settings[:api_key]
     end
 
+    def mime_message?
+      !!self.settings[:mime_message]
+    end
+
     def deliver!(rails_message)
-      response = mailgun_client.send_message build_mailgun_message_for(rails_message)
+      response = send_message build_mailgun_message_for(rails_message)
+
       if response.code == 200
         mailgun_message_id = JSON.parse(response.to_str)["id"]
         rails_message.message_id = mailgun_message_id
       end
+
       response
     end
 
     private
 
+    def send_message(mailgun_message)
+      if mime_message?
+        mailgun_client.send_mime_message mailgun_message
+      else
+        mailgun_client.send_message mailgun_message
+      end
+    end
+
     def build_mailgun_message_for(rails_message)
-      mailgun_message = build_basic_mailgun_message_for rails_message
+      if mime_message?
+        mailgun_message = build_mime_mailgun_message_for rails_message
+      else
+        mailgun_message = build_basic_mailgun_message_for rails_message
+      end
       transform_mailgun_attributes_from_rails rails_message, mailgun_message
       remove_empty_values mailgun_message
 
@@ -70,6 +88,17 @@ module Mailgun
       end
 
       return mailgun_message
+    end
+
+    def build_mime_mailgun_message_for(rails_message)
+      mime_message = Tempfile.new
+      mime_message.write rails_message.to_s
+      mime_message.rewind
+
+      {
+       to: rails_message[:to].formatted,
+       message: mime_message
+      }
     end
 
     def transform_reply_to(rails_message, mailgun_message)
