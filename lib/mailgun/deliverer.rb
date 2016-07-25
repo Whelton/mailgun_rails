@@ -18,7 +18,7 @@ module Mailgun
     def deliver!(rails_message)
       client = mailgun_client
       client.domain = extract_domain(rails_message) if domain.to_s == 'auto'
-      response = client.send_message build_mailgun_message_for(rails_message)
+      response = client.send_message build_mailgun_message_for(rails_message), rails_message.mailgun_settings
 
       if response.code == 200
         mailgun_message_id = JSON.parse(response.to_str)["id"]
